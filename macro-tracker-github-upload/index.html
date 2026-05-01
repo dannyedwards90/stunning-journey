@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Macro Tracker</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f4f7fb;
+      --muted: #99a7b7;
+      --line: rgba(255, 255, 255, 0.12);
+      --paper: #080d14;
+      --panel: #101823;
+      --panel-soft: #141f2c;
+      --green: #40e6a0;
+      --teal: #37d4ff;
+      --red: #ff6b6b;
+      --yellow: #ffca5f;
+      --violet: #a78bfa;
+      --shadow: 0 18px 46px rgba(0, 0, 0, 0.36);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(64, 230, 160, 0.2), transparent 28%),
+        radial-gradient(circle at 85% 18%, rgba(55, 212, 255, 0.18), transparent 30%),
+        linear-gradient(135deg, rgba(167, 139, 250, 0.14), transparent 34%),
+        var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 36px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 4rem;
+      line-height: 0.95;
+      max-width: 720px;
+      background: linear-gradient(135deg, #ffffff, var(--green) 42%, var(--teal));
+      background-clip: text;
+      color: transparent;
+    }
+
+    .date {
+      color: var(--muted);
+      font-weight: 700;
+      white-space: nowrap;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .summary {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(20, 31, 44, 0.96), rgba(12, 18, 27, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      height: 100%;
+    }
+
+    .summary {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .summary-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .day-picker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .icon-btn {
+      width: 44px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 900;
+    }
+
+    .summary-head h2,
+    .panel-title {
+      font-size: 1.05rem;
+      line-height: 1.2;
+    }
+
+    .calorie-ring {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 22px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex: 1;
+    }
+
+    .ring {
+      --progress: 0;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background:
+        conic-gradient(var(--green) calc(var(--progress) * 1%), rgba(255, 255, 255, 0.12) 0);
+      position: relative;
+      min-width: 160px;
+      box-shadow: 0 0 34px rgba(64, 230, 160, 0.18);
+    }
+
+    .ring::after {
+      content: "";
+      position: absolute;
+      width: 74%;
+      height: 74%;
+      background: #101823;
+      border-radius: 50%;
+    }
+
+    .ring-value {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .ring-value strong {
+      display: block;
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    .ring-value span {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .totals {
+      display: grid;
+      gap: 10px;
+    }
+
+    .total-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
+
+    .total-line:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .total-line span {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .total-line strong {
+      font-size: 1.45rem;
+      color: var(--green);
+    }
+
+    .macro-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .macro-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--panel-soft);
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .macro-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 4px;
+      background: var(--card-color);
+    }
+
+    .macro-card header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .macro-card strong {
+      display: block;
+      margin: 10px 0;
+      font-size: 1.75rem;
+      line-height: 1;
+      color: var(--card-color);
+    }
+
+    .bar {
+      height: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .bar span {
+      display: block;
+      width: var(--fill);
+      height: 100%;
+      border-radius: inherit;
+      background: var(--bar-color);
+      box-shadow: 0 0 18px color-mix(in srgb, var(--bar-color), transparent 45%);
+      transition: width 180ms ease;
+    }
+
+    .controls {
+      display: contents;
+    }
+
+    .targets-panel {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .meal-panel {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .paste-panel {
+      grid-column: 2;
+      grid-row: 3;
+    }
+
+    .log-panel {
+      grid-column: 1;
+      grid-row: 3;
+    }
+
+    .log-panel .actions {
+      flex-wrap: wrap;
+    }
+
+    .form-panel {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-panel h2 {
+      margin-bottom: 14px;
+    }
+
+    .hint {
+      margin: -6px 0 14px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--ink);
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    input,
+    select {
+      min-height: 44px;
+    }
+
+    textarea {
+      min-height: 132px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(55, 212, 255, 0.16);
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: #6d7d8e;
+    }
+
+    .status {
+      min-height: 20px;
+      margin-top: 10px;
+      color: var(--green);
+      font-size: 0.9rem;
+      font-weight: 750;
+    }
+
+    .status.error {
+      color: var(--red);
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .btn {
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 16px;
+      color: #061017;
+      background: linear-gradient(135deg, var(--green), var(--teal));
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(55, 212, 255, 0.14);
+    }
+
+    .btn.secondary {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.09);
+      box-shadow: none;
+    }
+
+    .btn.file-btn {
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .file-btn input {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .history-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .history-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 12px;
+    }
+
+    .history-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .history-card strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1.2rem;
+    }
+
+    .meal-drawer {
+      margin-top: 18px;
+      overflow: hidden;
+    }
+
+    .drawer-toggle {
+      width: 100%;
+      min-height: 58px;
+      border: 0;
+      background: linear-gradient(90deg, rgba(64, 230, 160, 0.12), rgba(55, 212, 255, 0.08));
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 18px;
+      font-weight: 900;
+      text-align: left;
+    }
+
+    .chevron {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.11);
+      color: var(--teal);
+      transition: transform 160ms ease;
+      flex: 0 0 auto;
+    }
+
+    .meal-drawer.open .chevron {
+      transform: rotate(180deg);
+    }
+
+    .meal-list {
+      display: none;
+      border-top: 1px solid var(--line);
+      background: rgba(8, 13, 20, 0.35);
+    }
+
+    .meal-drawer.open .meal-list {
+      display: block;
+    }
+
+    .meal-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .meal-row:last-child {
+      border-bottom: 0;
+    }
+
+    .meal-row h3 {
+      font-size: 1rem;
+    }
+
+    .meal-row p {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    .remove {
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(255, 107, 107, 0.36);
+      border-radius: 8px;
+      background: rgba(255, 107, 107, 0.1);
+      color: var(--red);
+      font-weight: 900;
+    }
+
+    .empty {
+      padding: 22px 18px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    @media (max-width: 860px) {
+      .dashboard,
+      .calorie-ring {
+        grid-template-columns: 1fr;
+      }
+
+      .targets-panel,
+      .meal-panel,
+      .paste-panel,
+      .log-panel,
+      .summary {
+        grid-column: 1;
+        grid-row: auto;
+      }
+
+      .ring {
+        width: min(220px, 72vw);
+        justify-self: center;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .app {
+        width: min(100% - 22px, 1180px);
+        padding-top: 18px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      h1 {
+        font-size: 2.45rem;
+      }
+
+      .macro-grid,
+      .field-grid,
+      .history-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>Macro Tracker</h1>
+      </div>
+      <p class="date" id="today"></p>
+    </header>
+
+    <section class="dashboard" aria-label="Macro dashboard">
+      <article class="panel summary">
+        <div class="summary-head">
+          <div>
+            <h2 id="dayTitle">Today</h2>
+            <strong id="mealCount">0 meals</strong>
+          </div>
+          <div class="day-picker" aria-label="Choose log date">
+            <button class="icon-btn" id="previousDay" type="button" aria-label="Previous day">&lt;</button>
+            <input id="logDate" type="date" />
+            <button class="icon-btn" id="nextDay" type="button" aria-label="Next day">&gt;</button>
+          </div>
+        </div>
+
+        <div class="calorie-ring">
+          <div class="ring" id="calorieRing" aria-label="Calories consumed progress">
+            <div class="ring-value">
+              <strong id="caloriePercent">0%</strong>
+              <span>calories</span>
+            </div>
+          </div>
+
+          <div class="totals">
+            <div class="total-line">
+              <span>Consumed</span>
+              <strong><span id="caloriesConsumed">0</span> kcal</strong>
+            </div>
+            <div class="total-line">
+              <span>Target</span>
+              <strong><span id="caloriesTarget">2200</span> kcal</strong>
+            </div>
+            <div class="total-line">
+              <span>Remaining</span>
+              <strong><span id="caloriesRemaining">2200</span> kcal</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="macro-grid">
+          <div class="macro-card" style="--card-color: var(--green)">
+            <header><span>Protein</span><span id="proteinRatio">0 / 160g</span></header>
+            <strong><span id="proteinConsumed">0</span>g</strong>
+            <div class="bar"><span id="proteinBar" style="--fill: 0%; --bar-color: var(--green)"></span></div>
+          </div>
+          <div class="macro-card" style="--card-color: var(--teal)">
+            <header><span>Carbs</span><span id="carbsRatio">0 / 240g</span></header>
+            <strong><span id="carbsConsumed">0</span>g</strong>
+            <div class="bar"><span id="carbsBar" style="--fill: 0%; --bar-color: var(--teal)"></span></div>
+          </div>
+          <div class="macro-card" style="--card-color: var(--yellow)">
+            <header><span>Fat</span><span id="fatRatio">0 / 70g</span></header>
+            <strong><span id="fatConsumed">0</span>g</strong>
+            <div class="bar"><span id="fatBar" style="--fill: 0%; --bar-color: var(--yellow)"></span></div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="controls">
+        <article class="panel form-panel targets-panel">
+          <h2 class="panel-title">Targets</h2>
+          <form id="targetsForm">
+            <div class="field-grid">
+              <label>Calories <input id="targetCalories" type="number" min="0" step="10" /></label>
+              <label>Protein <input id="targetProtein" type="number" min="0" step="1" /></label>
+              <label>Carbs <input id="targetCarbs" type="number" min="0" step="1" /></label>
+              <label>Fat <input id="targetFat" type="number" min="0" step="1" /></label>
+            </div>
+            <div class="actions">
+              <button class="btn" type="submit">Save Targets</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="panel form-panel meal-panel">
+          <h2 class="panel-title">Add Meal</h2>
+          <form id="mealForm">
+            <div class="field-grid">
+              <label class="wide">Meal <input id="mealName" type="text" placeholder="Breakfast" required /></label>
+              <label>Calories <input id="mealCalories" type="number" min="0" step="1" required /></label>
+              <label>Protein <input id="mealProtein" type="number" min="0" step="1" required /></label>
+              <label>Carbs <input id="mealCarbs" type="number" min="0" step="1" required /></label>
+              <label>Fat <input id="mealFat" type="number" min="0" step="1" required /></label>
+            </div>
+            <div class="actions">
+              <button class="btn" type="submit">Add Meal</button>
+              <button class="btn secondary" id="resetDay" type="button">Reset Day</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="panel form-panel paste-panel">
+          <h2 class="panel-title">Paste from ChatGPT</h2>
+          <p class="hint">Paste the JSON block your ChatGPT Project gives you. Meals are added to the selected date unless the JSON includes a date.</p>
+          <label class="wide">
+            Meal JSON
+            <textarea id="chatgptPaste" spellcheck="false" placeholder='{"date":"2026-04-30","meals":[{"name":"Chicken rice bowl","calories":650,"protein":45,"carbs":70,"fat":18}]}'></textarea>
+          </label>
+          <div class="actions">
+            <button class="btn" id="pasteMeals" type="button">Add Pasted Meals</button>
+            <button class="btn secondary" id="clearPaste" type="button">Clear</button>
+          </div>
+          <p class="status" id="pasteStatus" aria-live="polite"></p>
+        </article>
+
+        <article class="panel form-panel log-panel">
+          <h2 class="panel-title">Daily Log</h2>
+          <p class="hint">Export your history for ChatGPT, or import a saved tracker file later.</p>
+          <div class="history-grid">
+            <div class="history-card"><span>Logged days</span><strong id="loggedDays">0</strong></div>
+            <div class="history-card"><span>Avg calories</span><strong id="averageCalories">0</strong></div>
+            <div class="history-card"><span>Total meals</span><strong id="totalMeals">0</strong></div>
+            <div class="history-card"><span>Best protein</span><strong id="bestProtein">0g</strong></div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="exportCsv" type="button">Export CSV</button>
+            <button class="btn secondary" id="exportJson" type="button">Export JSON</button>
+            <label class="btn secondary file-btn">
+              Import
+              <input id="importFile" type="file" accept=".json,application/json" />
+            </label>
+          </div>
+        </article>
+      </aside>
+    </section>
+
+    <section class="panel meal-drawer open" id="mealDrawer">
+      <button class="drawer-toggle" id="drawerToggle" type="button" aria-expanded="true">
+        <span>Meals eaten</span>
+        <span class="chevron" aria-hidden="true">v</span>
+      </button>
+      <div class="meal-list" id="mealList"></div>
+    </section>
+  </main>
+
+  <script>
+    const storageKey = "macro-tracker-state";
+    const defaultTargets = { calories: 2200, protein: 160, carbs: 240, fat: 70 };
+    const defaults = {
+      defaultTargets,
+      selectedDate: getDateKey(new Date()),
+      logs: {},
+      targetsByDate: {}
+    };
+
+    const state = loadState();
+    const macros = ["protein", "carbs", "fat"];
+
+    const els = {
+      today: document.querySelector("#today"),
+      dayTitle: document.querySelector("#dayTitle"),
+      logDate: document.querySelector("#logDate"),
+      previousDay: document.querySelector("#previousDay"),
+      nextDay: document.querySelector("#nextDay"),
+      mealCount: document.querySelector("#mealCount"),
+      caloriesConsumed: document.querySelector("#caloriesConsumed"),
+      caloriesTarget: document.querySelector("#caloriesTarget"),
+      caloriesRemaining: document.querySelector("#caloriesRemaining"),
+      caloriePercent: document.querySelector("#caloriePercent"),
+      calorieRing: document.querySelector("#calorieRing"),
+      mealList: document.querySelector("#mealList"),
+      drawer: document.querySelector("#mealDrawer"),
+      drawerToggle: document.querySelector("#drawerToggle"),
+      targetsForm: document.querySelector("#targetsForm"),
+      mealForm: document.querySelector("#mealForm"),
+      resetDay: document.querySelector("#resetDay"),
+      targetCalories: document.querySelector("#targetCalories"),
+      targetProtein: document.querySelector("#targetProtein"),
+      targetCarbs: document.querySelector("#targetCarbs"),
+      targetFat: document.querySelector("#targetFat"),
+      mealName: document.querySelector("#mealName"),
+      mealCalories: document.querySelector("#mealCalories"),
+      mealProtein: document.querySelector("#mealProtein"),
+      mealCarbs: document.querySelector("#mealCarbs"),
+      mealFat: document.querySelector("#mealFat"),
+      loggedDays: document.querySelector("#loggedDays"),
+      averageCalories: document.querySelector("#averageCalories"),
+      totalMeals: document.querySelector("#totalMeals"),
+      bestProtein: document.querySelector("#bestProtein"),
+      exportCsv: document.querySelector("#exportCsv"),
+      exportJson: document.querySelector("#exportJson"),
+      importFile: document.querySelector("#importFile"),
+      chatgptPaste: document.querySelector("#chatgptPaste"),
+      pasteMeals: document.querySelector("#pasteMeals"),
+      clearPaste: document.querySelector("#clearPaste"),
+      pasteStatus: document.querySelector("#pasteStatus")
+    };
+
+    els.today.textContent = new Intl.DateTimeFormat("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long"
+    }).format(new Date());
+
+    function getDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (saved && saved.defaultTargets && saved.logs && saved.targetsByDate) {
+          return {
+            defaultTargets: saved.defaultTargets,
+            selectedDate: saved.selectedDate || getDateKey(new Date()),
+            logs: saved.logs,
+            targetsByDate: saved.targetsByDate
+          };
+        }
+        if (saved && saved.targets && saved.logs) {
+          const selectedDate = saved.selectedDate || getDateKey(new Date());
+          return {
+            defaultTargets: saved.targets,
+            selectedDate,
+            logs: saved.logs,
+            targetsByDate: { [selectedDate]: saved.targets }
+          };
+        }
+        if (saved && saved.targets && Array.isArray(saved.meals)) {
+          const today = getDateKey(new Date());
+          return {
+            defaultTargets: saved.targets,
+            selectedDate: today,
+            logs: { [today]: saved.meals },
+            targetsByDate: { [today]: saved.targets }
+          };
+        }
+      } catch (error) {
+        localStorage.removeItem(storageKey);
+      }
+      return structuredClone(defaults);
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function currentTargets() {
+      if (!state.targetsByDate[state.selectedDate]) {
+        state.targetsByDate[state.selectedDate] = { ...state.defaultTargets };
+      }
+      return state.targetsByDate[state.selectedDate];
+    }
+
+    function currentMeals() {
+      if (!state.logs[state.selectedDate]) {
+        state.logs[state.selectedDate] = [];
+      }
+      return state.logs[state.selectedDate];
+    }
+
+    function clampPercent(value, target) {
+      if (!target) return 0;
+      return Math.min(100, Math.round((value / target) * 100));
+    }
+
+    function getTotals(meals = currentMeals()) {
+      return meals.reduce((totals, meal) => {
+        totals.calories += Number(meal.calories) || 0;
+        totals.protein += Number(meal.protein) || 0;
+        totals.carbs += Number(meal.carbs) || 0;
+        totals.fat += Number(meal.fat) || 0;
+        return totals;
+      }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    }
+
+    function setTargetInputs() {
+      const targets = currentTargets();
+      els.targetCalories.value = targets.calories;
+      els.targetProtein.value = targets.protein;
+      els.targetCarbs.value = targets.carbs;
+      els.targetFat.value = targets.fat;
+    }
+
+    function formatSelectedDate() {
+      const [year, month, day] = state.selectedDate.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
+      const today = getDateKey(new Date());
+      const label = new Intl.DateTimeFormat("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long"
+      }).format(date);
+      return state.selectedDate === today ? `Today - ${label}` : label;
+    }
+
+    function renderDashboard() {
+      const meals = currentMeals();
+      const targets = currentTargets();
+      const totals = getTotals();
+      const caloriePercent = clampPercent(totals.calories, targets.calories);
+
+      els.dayTitle.textContent = formatSelectedDate();
+      els.logDate.value = state.selectedDate;
+      els.mealCount.textContent = `${meals.length} ${meals.length === 1 ? "meal" : "meals"}`;
+      els.caloriesConsumed.textContent = Math.round(totals.calories);
+      els.caloriesTarget.textContent = Math.round(targets.calories);
+      els.caloriesRemaining.textContent = Math.round(targets.calories - totals.calories);
+      els.caloriePercent.textContent = `${caloriePercent}%`;
+      els.calorieRing.style.setProperty("--progress", caloriePercent);
+
+      macros.forEach((macro) => {
+        const consumed = Math.round(totals[macro]);
+        const target = Math.round(targets[macro]);
+        document.querySelector(`#${macro}Consumed`).textContent = consumed;
+        document.querySelector(`#${macro}Ratio`).textContent = `${consumed} / ${target}g`;
+        document.querySelector(`#${macro}Bar`).style.setProperty("--fill", `${clampPercent(consumed, target)}%`);
+      });
+    }
+
+    function renderMeals() {
+      const meals = currentMeals();
+      if (!meals.length) {
+        els.mealList.innerHTML = '<p class="empty">No meals logged yet.</p>';
+        return;
+      }
+
+      els.mealList.innerHTML = meals.map((meal) => `
+        <div class="meal-row">
+          <div>
+            <h3>${escapeHtml(meal.name)}</h3>
+            <p>${meal.calories} kcal - ${meal.protein}g protein - ${meal.carbs}g carbs - ${meal.fat}g fat</p>
+          </div>
+          <button class="remove" type="button" aria-label="Remove ${escapeHtml(meal.name)}" data-id="${meal.id}">x</button>
+        </div>
+      `).join("");
+    }
+
+    function renderHistoryStats() {
+      const entries = Object.entries(state.logs).filter(([, meals]) => meals.length);
+      const dayTotals = entries.map(([date, meals]) => ({ date, totals: getTotals(meals), meals }));
+      const totalCalories = dayTotals.reduce((sum, day) => sum + day.totals.calories, 0);
+      const totalMeals = entries.reduce((sum, [, meals]) => sum + meals.length, 0);
+      const bestProtein = dayTotals.reduce((best, day) => Math.max(best, day.totals.protein), 0);
+
+      els.loggedDays.textContent = entries.length;
+      els.averageCalories.textContent = entries.length ? Math.round(totalCalories / entries.length) : 0;
+      els.totalMeals.textContent = totalMeals;
+      els.bestProtein.textContent = `${Math.round(bestProtein)}g`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    function render() {
+      setTargetInputs();
+      renderDashboard();
+      renderMeals();
+      renderHistoryStats();
+      saveState();
+    }
+
+    function changeDate(offset) {
+      const [year, month, day] = state.selectedDate.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
+      date.setDate(date.getDate() + offset);
+      state.selectedDate = getDateKey(date);
+      render();
+    }
+
+    function flattenLogs() {
+      return Object.entries(state.logs)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .flatMap(([date, meals]) => {
+          const targets = state.targetsByDate[date] || state.defaultTargets;
+          return meals.map((meal) => ({ date, targets, ...meal }));
+        });
+    }
+
+    function exportCsv() {
+      const header = ["date", "meal", "calories", "protein", "carbs", "fat", "target_calories", "target_protein", "target_carbs", "target_fat"];
+      const rows = flattenLogs().map((meal) => [
+        meal.date,
+        `"${String(meal.name).replaceAll('"', '""')}"`,
+        Number(meal.calories) || 0,
+        Number(meal.protein) || 0,
+        Number(meal.carbs) || 0,
+        Number(meal.fat) || 0,
+        Number(meal.targets.calories) || 0,
+        Number(meal.targets.protein) || 0,
+        Number(meal.targets.carbs) || 0,
+        Number(meal.targets.fat) || 0
+      ]);
+      downloadFile(`macro-log-${getDateKey(new Date())}.csv`, [header, ...rows].map((row) => row.join(",")).join("\n"), "text/csv");
+    }
+
+    function exportJson() {
+      downloadFile(
+        `macro-log-${getDateKey(new Date())}.json`,
+        JSON.stringify(state, null, 2),
+        "application/json"
+      );
+    }
+
+    function downloadFile(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function normalizeImportedState(imported) {
+      if (!imported) return null;
+      if (imported.defaultTargets && imported.logs && imported.targetsByDate) {
+        return {
+          defaultTargets: imported.defaultTargets,
+          selectedDate: imported.selectedDate || getDateKey(new Date()),
+          logs: imported.logs,
+          targetsByDate: imported.targetsByDate
+        };
+      }
+      if (!imported.targets) return null;
+      if (imported.logs) {
+        const selectedDate = imported.selectedDate || getDateKey(new Date());
+        return {
+          defaultTargets: imported.targets,
+          selectedDate,
+          logs: imported.logs,
+          targetsByDate: { [selectedDate]: imported.targets }
+        };
+      }
+      if (Array.isArray(imported.meals)) {
+        const today = getDateKey(new Date());
+        return {
+          defaultTargets: imported.targets,
+          selectedDate: today,
+          logs: { [today]: imported.meals },
+          targetsByDate: { [today]: imported.targets }
+        };
+      }
+      return null;
+    }
+
+    function parsePastedMeals(value) {
+      const cleaned = value
+        .trim()
+        .replace(/^```(?:json)?/i, "")
+        .replace(/```$/i, "")
+        .trim();
+      const parsed = JSON.parse(cleaned);
+      const meals = Array.isArray(parsed) ? parsed : parsed.meals;
+      if (!Array.isArray(meals) || !meals.length) {
+        throw new Error("No meals found");
+      }
+      return {
+        date: parsed.date || state.selectedDate,
+        meals: meals.map((meal) => ({
+          id: crypto.randomUUID(),
+          name: String(meal.name || meal.meal || "Meal").trim(),
+          calories: Number(meal.calories) || 0,
+          protein: Number(meal.protein) || 0,
+          carbs: Number(meal.carbs) || 0,
+          fat: Number(meal.fat) || 0
+        }))
+      };
+    }
+
+    function setPasteStatus(message, isError = false) {
+      els.pasteStatus.textContent = message;
+      els.pasteStatus.classList.toggle("error", isError);
+    }
+
+    els.targetsForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      state.targetsByDate[state.selectedDate] = {
+        calories: Number(els.targetCalories.value) || 0,
+        protein: Number(els.targetProtein.value) || 0,
+        carbs: Number(els.targetCarbs.value) || 0,
+        fat: Number(els.targetFat.value) || 0
+      };
+      render();
+    });
+
+    els.mealForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      currentMeals().push({
+        id: crypto.randomUUID(),
+        name: els.mealName.value.trim() || "Meal",
+        calories: Number(els.mealCalories.value) || 0,
+        protein: Number(els.mealProtein.value) || 0,
+        carbs: Number(els.mealCarbs.value) || 0,
+        fat: Number(els.mealFat.value) || 0
+      });
+      els.mealForm.reset();
+      render();
+    });
+
+    els.resetDay.addEventListener("click", () => {
+      state.logs[state.selectedDate] = [];
+      render();
+    });
+
+    els.mealList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-id]");
+      if (!button) return;
+      state.logs[state.selectedDate] = currentMeals().filter((meal) => meal.id !== button.dataset.id);
+      render();
+    });
+
+    els.previousDay.addEventListener("click", () => changeDate(-1));
+    els.nextDay.addEventListener("click", () => changeDate(1));
+
+    els.logDate.addEventListener("change", () => {
+      state.selectedDate = els.logDate.value || getDateKey(new Date());
+      render();
+    });
+
+    els.exportCsv.addEventListener("click", exportCsv);
+    els.exportJson.addEventListener("click", exportJson);
+
+    els.importFile.addEventListener("change", async () => {
+      const [file] = els.importFile.files;
+      if (!file) return;
+      try {
+        const imported = normalizeImportedState(JSON.parse(await file.text()));
+        if (!imported) throw new Error("Invalid tracker file");
+        state.defaultTargets = imported.defaultTargets;
+        state.selectedDate = imported.selectedDate;
+        state.logs = imported.logs;
+        state.targetsByDate = imported.targetsByDate;
+        render();
+      } catch (error) {
+        alert("That file does not look like a macro tracker export.");
+      } finally {
+        els.importFile.value = "";
+      }
+    });
+
+    els.pasteMeals.addEventListener("click", () => {
+      try {
+        const pasted = parsePastedMeals(els.chatgptPaste.value);
+        if (!state.logs[pasted.date]) {
+          state.logs[pasted.date] = [];
+        }
+        state.logs[pasted.date].push(...pasted.meals);
+        state.selectedDate = pasted.date;
+        els.chatgptPaste.value = "";
+        setPasteStatus(`Added ${pasted.meals.length} ${pasted.meals.length === 1 ? "meal" : "meals"} to ${pasted.date}.`);
+        render();
+      } catch (error) {
+        setPasteStatus("Paste valid JSON with a meals array.", true);
+      }
+    });
+
+    els.clearPaste.addEventListener("click", () => {
+      els.chatgptPaste.value = "";
+      setPasteStatus("");
+    });
+
+    els.drawerToggle.addEventListener("click", () => {
+      const open = els.drawer.classList.toggle("open");
+      els.drawerToggle.setAttribute("aria-expanded", String(open));
+    });
+
+    setTargetInputs();
+    render();
+  </script>
+</body>
+</html>
