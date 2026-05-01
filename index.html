@@ -391,6 +391,29 @@
       color: var(--red);
     }
 
+    .sync-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .sync-status {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 750;
+      min-height: 20px;
+      margin-top: 10px;
+    }
+
+    .sync-status.good {
+      color: var(--green);
+    }
+
+    .sync-status.bad {
+      color: var(--red);
+    }
+
     .wide {
       grid-column: 1 / -1;
     }
@@ -582,7 +605,8 @@
 
       .macro-grid,
       .field-grid,
-      .history-grid {
+      .history-grid,
+      .sync-row {
         grid-template-columns: 1fr;
       }
 
@@ -722,6 +746,18 @@
               <input id="importFile" type="file" accept=".json,application/json" />
             </label>
           </div>
+          <div class="sync-row">
+            <label>
+              Sync token
+              <input id="syncToken" type="password" placeholder="Enter your private sync token" autocomplete="off" />
+            </label>
+            <button class="btn secondary" id="saveSyncToken" type="button">Save</button>
+          </div>
+          <div class="actions">
+            <button class="btn" id="pullCloud" type="button">Pull Cloud</button>
+            <button class="btn secondary" id="pushCloud" type="button">Push Cloud</button>
+          </div>
+          <p class="sync-status" id="syncStatus" aria-live="polite">Cloud sync not configured.</p>
         </article>
       </aside>
     </section>
@@ -737,16 +773,21 @@
 
   <script>
     const storageKey = "macro-tracker-state";
+    const syncStorageKey = "macro-tracker-sync-config";
+    const defaultSyncUrl = "https://v3qz5jxevgdeob2ov5padthnue0ohuvi.lambda-url.eu-north-1.on.aws/";
     const defaultTargets = { calories: 2200, protein: 160, carbs: 240, fat: 70 };
     const defaults = {
       defaultTargets,
       selectedDate: getDateKey(new Date()),
       logs: {},
-      targetsByDate: {}
+      targetsByDate: {},
+      updatedAt: new Date().toISOString()
     };
 
     const state = loadState();
+    const syncConfig = loadSyncConfig();
     const macros = ["protein", "carbs", "fat"];
+    let syncTimer;
 
     const els = {
       today: document.querySelector("#today"),
@@ -785,7 +826,12 @@
       chatgptPaste: document.querySelector("#chatgptPaste"),
       pasteMeals: document.querySelector("#pasteMeals"),
       clearPaste: document.querySelector("#clearPaste"),
-      pasteStatus: document.querySelector("#pasteStatus")
+      pasteStatus: document.querySelector("#pasteStatus"),
+      syncToken: document.querySelector("#syncToken"),
+      saveSyncToken: document.querySelector("#saveSyncToken"),
+      pullCloud: document.querySelector("#pullCloud"),
+      pushCloud: document.querySelector("#pushCloud"),
+      syncStatus: document.querySelector("#syncStatus")
     };
 
     els.today.textContent = new Intl.DateTimeFormat("en-GB", {
@@ -809,7 +855,8 @@
             defaultTargets: saved.defaultTargets,
             selectedDate: saved.selectedDate || getDateKey(new Date()),
             logs: saved.logs,
-            targetsByDate: saved.targetsByDate
+            targetsByDate: saved.targetsByDate,
+            updatedAt: saved.updatedAt || new Date().toISOString()
           };
         }
         if (saved && saved.targets && saved.logs) {
@@ -818,7 +865,8 @@
             defaultTargets: saved.targets,
             selectedDate,
             logs: saved.logs,
-            targetsByDate: { [selectedDate]: saved.targets }
+            targetsByDate: { [selectedDate]: saved.targets },
+            updatedAt: saved.updatedAt || new Date().toISOString()
           };
         }
         if (saved && saved.targets && Array.isArray(saved.meals)) {
@@ -827,7 +875,8 @@
             defaultTargets: saved.targets,
             selectedDate: today,
             logs: { [today]: saved.meals },
-            targetsByDate: { [today]: saved.targets }
+            targetsByDate: { [today]: saved.targets },
+            updatedAt: new Date().toISOString()
           };
         }
       } catch (error) {
@@ -838,6 +887,107 @@
 
     function saveState() {
       localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function loadSyncConfig() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(syncStorageKey));
+        return {
+          url: saved?.url || defaultSyncUrl,
+          token: saved?.token || ""
+        };
+      } catch (error) {
+        return { url: defaultSyncUrl, token: "" };
+      }
+    }
+
+    function saveSyncConfig() {
+      localStorage.setItem(syncStorageKey, JSON.stringify(syncConfig));
+    }
+
+    function setSyncStatus(message, tone = "") {
+      els.syncStatus.textContent = message;
+      els.syncStatus.classList.toggle("good", tone === "good");
+      els.syncStatus.classList.toggle("bad", tone === "bad");
+    }
+
+    function markChanged() {
+      state.updatedAt = new Date().toISOString();
+      render();
+      queueCloudPush();
+    }
+
+    function queueCloudPush() {
+      if (!syncConfig.token) return;
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => pushCloudData(true), 900);
+    }
+
+    function cloudHeaders() {
+      return {
+        "content-type": "application/json",
+        "x-sync-token": syncConfig.token
+      };
+    }
+
+    async function pullCloudData() {
+      if (!syncConfig.token) {
+        setSyncStatus("Enter and save your sync token first.", "bad");
+        return;
+      }
+      setSyncStatus("Pulling cloud data...");
+      try {
+        const response = await fetch(syncConfig.url, {
+          method: "GET",
+          headers: cloudHeaders()
+        });
+        if (!response.ok) throw new Error(`Cloud returned ${response.status}`);
+        const cloudState = await response.json();
+        if (!cloudState) {
+          setSyncStatus("No cloud data yet. Use Push Cloud to create it.", "good");
+          return;
+        }
+        const localTime = Date.parse(state.updatedAt || 0);
+        const cloudTime = Date.parse(cloudState.updatedAt || 0);
+        if (cloudTime >= localTime) {
+          replaceState(cloudState);
+          render();
+          setSyncStatus("Pulled latest cloud data.", "good");
+        } else {
+          setSyncStatus("Local data is newer than cloud. Use Push Cloud if you want to overwrite cloud.", "good");
+        }
+      } catch (error) {
+        setSyncStatus(`Pull failed: ${error.message}`, "bad");
+      }
+    }
+
+    async function pushCloudData(isAuto = false) {
+      if (!syncConfig.token) {
+        setSyncStatus("Enter and save your sync token first.", "bad");
+        return;
+      }
+      if (!isAuto) setSyncStatus("Pushing local data to cloud...");
+      try {
+        const response = await fetch(syncConfig.url, {
+          method: "POST",
+          headers: cloudHeaders(),
+          body: JSON.stringify(state)
+        });
+        if (!response.ok) throw new Error(`Cloud returned ${response.status}`);
+        const result = await response.json();
+        setSyncStatus(`Synced ${new Date(result.updatedAt || state.updatedAt).toLocaleTimeString()}.`, "good");
+      } catch (error) {
+        setSyncStatus(`Sync failed: ${error.message}`, "bad");
+      }
+    }
+
+    function replaceState(nextState) {
+      state.defaultTargets = nextState.defaultTargets || defaultTargets;
+      state.selectedDate = nextState.selectedDate || getDateKey(new Date());
+      state.logs = nextState.logs || {};
+      state.targetsByDate = nextState.targetsByDate || {};
+      state.updatedAt = nextState.updatedAt || new Date().toISOString();
+      saveState();
     }
 
     function currentTargets() {
@@ -1083,7 +1233,7 @@
         carbs: Number(els.targetCarbs.value) || 0,
         fat: Number(els.targetFat.value) || 0
       };
-      render();
+      markChanged();
     });
 
     els.mealForm.addEventListener("submit", (event) => {
@@ -1097,19 +1247,19 @@
         fat: Number(els.mealFat.value) || 0
       });
       els.mealForm.reset();
-      render();
+      markChanged();
     });
 
     els.resetDay.addEventListener("click", () => {
       state.logs[state.selectedDate] = [];
-      render();
+      markChanged();
     });
 
     els.mealList.addEventListener("click", (event) => {
       const button = event.target.closest("[data-id]");
       if (!button) return;
       state.logs[state.selectedDate] = currentMeals().filter((meal) => meal.id !== button.dataset.id);
-      render();
+      markChanged();
     });
 
     els.previousDay.addEventListener("click", () => changeDate(-1));
@@ -1123,6 +1273,19 @@
     els.exportCsv.addEventListener("click", exportCsv);
     els.exportJson.addEventListener("click", exportJson);
 
+    els.saveSyncToken.addEventListener("click", () => {
+      syncConfig.token = els.syncToken.value.trim();
+      saveSyncConfig();
+      if (syncConfig.token) {
+        setSyncStatus("Sync token saved in this browser.", "good");
+      } else {
+        setSyncStatus("Cloud sync not configured.", "bad");
+      }
+    });
+
+    els.pullCloud.addEventListener("click", pullCloudData);
+    els.pushCloud.addEventListener("click", () => pushCloudData(false));
+
     els.importFile.addEventListener("change", async () => {
       const [file] = els.importFile.files;
       if (!file) return;
@@ -1133,7 +1296,7 @@
         state.selectedDate = imported.selectedDate;
         state.logs = imported.logs;
         state.targetsByDate = imported.targetsByDate;
-        render();
+        markChanged();
       } catch (error) {
         alert("That file does not look like a macro tracker export.");
       } finally {
@@ -1151,7 +1314,7 @@
         state.selectedDate = pasted.date;
         els.chatgptPaste.value = "";
         setPasteStatus(`Added ${pasted.meals.length} ${pasted.meals.length === 1 ? "meal" : "meals"} to ${pasted.date}.`);
-        render();
+        markChanged();
       } catch (error) {
         setPasteStatus("Paste valid JSON with a meals array.", true);
       }
@@ -1167,8 +1330,13 @@
       els.drawerToggle.setAttribute("aria-expanded", String(open));
     });
 
+    els.syncToken.value = syncConfig.token;
+    setSyncStatus(syncConfig.token ? "Cloud sync configured." : "Cloud sync not configured.", syncConfig.token ? "good" : "");
     setTargetInputs();
     render();
+    if (syncConfig.token) {
+      pullCloudData();
+    }
   </script>
 </body>
 </html>
